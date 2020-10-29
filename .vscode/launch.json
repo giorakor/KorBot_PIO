@@ -12,8 +12,8 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug",
-            "executable": "e:/user/Google Drive/03 Hobbies/01 PlatformIO/Projects/Korbot_PIO/.pio/build/megaatmega2560/firmware.elf",
-            "toolchainBinDir": "C:/Users/user/.platformio/packages/toolchain-atmelavr/bin",
+            "executable": "c:/Users/giora.TERRALAB/Google Drive/03 Hobbies/01 PlatformIO/Projects/Korbot_PIO/.pio/build/megaatmega2560/firmware.elf",
+            "toolchainBinDir": "C:/Users/giora.TERRALAB/.platformio/packages/toolchain-atmelavr/bin",
             "preLaunchTask": {
                 "type": "PlatformIO",
                 "task": "Pre-Debug"
@@ -24,8 +24,8 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (skip Pre-Debug)",
-            "executable": "e:/user/Google Drive/03 Hobbies/01 PlatformIO/Projects/Korbot_PIO/.pio/build/megaatmega2560/firmware.elf",
-            "toolchainBinDir": "C:/Users/user/.platformio/packages/toolchain-atmelavr/bin",
+            "executable": "c:/Users/giora.TERRALAB/Google Drive/03 Hobbies/01 PlatformIO/Projects/Korbot_PIO/.pio/build/megaatmega2560/firmware.elf",
+            "toolchainBinDir": "C:/Users/giora.TERRALAB/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart"
         }
     ]
