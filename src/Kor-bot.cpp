@@ -1,3 +1,5 @@
+// added comment to test VS git
+
 #include <Arduino.h>
 #include <I2C.h>
 #include <EEPROM.h>
