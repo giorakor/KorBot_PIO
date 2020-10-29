@@ -1,5 +1,3 @@
-// added comment to test VS git
-
 #include <Arduino.h>
 #include <I2C.h>
 #include <EEPROM.h>
@@ -7,6 +5,8 @@
 
 #define SEND_TELEMETRY false
 #define CALIBRATE_GYRO false
+
+// test2
 
 // IMU & Gyro related definitions //
 #define ALPHA_GYRO_ACCEL 0.99   // Takes most of the pitch data from gyro .. very little noise to acc
