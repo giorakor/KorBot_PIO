@@ -6,9 +6,7 @@
 #define SEND_TELEMETRY false
 #define CALIBRATE_GYRO false
 
-// test2
-
-// IMU & Gyro related definitions //
+// IMU & Gyro related definitions // // //
 #define ALPHA_GYRO_ACCEL 0.99   // Takes most of the pitch data from gyro .. very little noise to acc
 #define MIX_YAW_PITCH -0.016    // in-orthogonality of the gyro axes //  more positive = right moves more when rotating
 #define MPU_ADDRESS 0x68        // MPU6050 I2C address
