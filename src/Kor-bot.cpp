@@ -6,7 +6,7 @@
 #define SEND_TELEMETRY false
 #define CALIBRATE_GYRO false
 
-// IMU & Gyro related definitions 
+// IMU & Gyro related definitions
 #define ALPHA_GYRO_ACCEL 0.99   // Takes most of the pitch data from gyro .. very little noise to acc
 #define MIX_YAW_PITCH -0.016    // in-orthogonality of the gyro axes //  more positive = right moves more when rotating
 #define MPU_ADDRESS 0x68        // MPU6050 I2C address
@@ -181,7 +181,6 @@ bool first_run = true;
 bool main_LED = true;
 bool dizzy = false;
 
-uint8_t RaspberryPi_index;
 uint8_t busy_cycle_time;
 uint8_t GUI_selector, prev_GUI_selector;
 
@@ -587,7 +586,10 @@ void send_to_RaspberryPi()
 {
   static float average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase;
   static int dizzy_count;
+  static uint8_t expression;
+  static long last_time_expression_chnaged;
 
+  // calculate eyes pitch and yaw
   alpha_beta(average_yaw, robot_orientation.yaw, ALPHA_YAW_AVERAGE);
   if (abs(RemoteXY.joystick_1_x) > abs(avg_stick_x))
     alpha_beta(avg_stick_x, RemoteXY.joystick_1_x, ALPHA_YAW_AVERAGE);
@@ -596,6 +598,7 @@ void send_to_RaspberryPi()
   eyes_pitch = 1500 * pitch_rad + 128;
   eyes_yaw = (robot_orientation.yaw - average_yaw) * 15 + (RemoteXY.joystick_1_x - avg_stick_x) * 60 + 128;
 
+  // do the dizzy trick
   if (dizzy)
   {
     dizzy_amplitude = (600 - float(dizzy_count)) / 5;
@@ -609,15 +612,30 @@ void send_to_RaspberryPi()
       dizzy_count = 0;
     }
   }
+  // calculate expression
+
+  transmit_to_raspberryPi(eyes_yaw, eyes_pitch, expression);
+}
+
+void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expression)
+{
+  static uint8_t RaspberryPi_index;
+
   if (RaspberryPi_index == 0)
+  {
     Serial3.write(0xff);
-  Serial3.write(0xff);
+    Serial3.write(0xff);
+  }
   if (RaspberryPi_index == 1)
+  {
     Serial3.write(byte(constrain(int(eyes_pitch), 0, 254))); // send pitch in 0.1 Deg
-  Serial3.write(byte(constrain(int(eyes_yaw), 0, 254)));     // sends high byte of yaw in 0.1 deg
+    Serial3.write(byte(constrain(int(eyes_yaw), 0, 254)));   // sends high byte of yaw in 0.1 deg
+  }
   if (RaspberryPi_index == 2)
+  {
     Serial3.write(byte(constrain(int(50 * robot_vel_m_sec + 128), 0, 254))); // send vel in 2cm/sec
-  Serial3.write(byte(0));                                                    // reserved for dizzy  use for expression
+    Serial3.write(byte(expression));                                         // expression
+  }
   RaspberryPi_index += 1;
   if (RaspberryPi_index == 3)
     RaspberryPi_index = 0;
