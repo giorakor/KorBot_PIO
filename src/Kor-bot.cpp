@@ -590,7 +590,7 @@ void control_LEDs()
   digitalWrite(PIN_LED2, standing);
 }
 
-void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expression, uint8_t blink_time)
+void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expression)
 {
   static uint8_t RaspberryPi_index;
 
@@ -617,7 +617,7 @@ void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expressio
 
 void send_to_RaspberryPi()
 {
-  static float stick_x, average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase;
+  static float stick_x, average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase, dizzy_sign;
   static int dizzy_count;
   static uint8_t express, express_use, shocked, rand_e;
   static unsigned long last_time_expression_chnaged;
@@ -633,18 +633,23 @@ void send_to_RaspberryPi()
   else
     avg_stick_x = stick_x;
 
-  eyes_pitch = pitch_rad * RAD_TO_DEG * 10.0 + 128.0;
-  eyes_yaw = (robot_orientation.yaw - average_yaw) * 2.0 + (stick_x - avg_stick_x) * 2.0 + 128.0;
-
+  eyes_pitch = pitch_rad * RAD_TO_DEG * 8.0;
+  constrainF(eyes_pitch, -30, 30);
+  eyes_yaw = (robot_orientation.yaw - average_yaw) * 10.0 + (stick_x - avg_stick_x) * 10.0;
+  constrainF(eyes_pitch, -60, 60);
+  eyes_pitch += 128;
+  eyes_yaw += 128;
   // do the dizzy trick
   if (dizzy)
   {
-    dizzy_amplitude = (800.0 - float(dizzy_count)) / 10.0;
-    dizzy_phase = float(dizzy_count) / 40.0;
-    eyes_yaw += dizzy_amplitude * cos(dizzy_phase);
+    if (dizzy_count == 0)
+      dizzy_sign = eyes_yaw / (abs(eyes_yaw) + 0.0000001);
+    dizzy_amplitude = (800.0 - float(dizzy_count)) / 15.0;
+    dizzy_phase = float(dizzy_count) / 20.0;
+    eyes_yaw += dizzy_sign * dizzy_amplitude * cos(dizzy_phase);
     eyes_pitch += dizzy_amplitude * sin(dizzy_phase);
     dizzy_count++;
-    if (dizzy_count > 600)
+    if (dizzy_count > 800)
     {
       dizzy = false;
       dizzy_count = 0;
@@ -652,7 +657,7 @@ void send_to_RaspberryPi()
   }
   // calculate expression
   // 0 = closed, 1= normal, 2 = snake , 3 = angree , 4 = worry , 5 = shock
-  if (millis() > last_time_expression_chnaged + (4000 + random(2000) - 2000 * bored))
+  if (millis() > last_time_expression_chnaged + (3000 + random(3000) - 1500 * bored))
   {
     express = 1;
     rand_e = random(5);
@@ -673,9 +678,9 @@ void send_to_RaspberryPi()
     express = 1;
 
   express_use = express;
-  if (abs(robot_vel_m_sec) > 0.6 - 0.4 * shocked)
+  if (abs(robot_vel_m_sec) > 0.6 - 0.5 * shocked)
   {
-    express_use = 5;
+    express_use = 5; // shocked
     shocked = 1;
   }
   else
@@ -683,21 +688,20 @@ void send_to_RaspberryPi()
     shocked = 0;
   }
 
-  if (millis() > last_blinked + 500 + random(2000) - 500 * bored)
+  if (millis() > last_blinked + 1000 + random(3000) - 500 * bored)
   {
     blink_time = 15;
     last_blinked = millis();
-    express_use = 0;
   }
 
   if (!standing)
     last_time_moved = millis();
-  if (millis() > last_time_moved + 12000)
-    bored = true;
+  if (millis() > last_time_moved + 15000)
+    bored = 1;
   else
-    bored = false;
+    bored = 0;
 
-  transmit_to_raspberryPi(eyes_yaw, eyes_pitch, express_use, blink_time);
+  transmit_to_raspberryPi(eyes_yaw, eyes_pitch, express_use);
 }
 
 void send_telemetry()
