@@ -180,7 +180,8 @@ bool other_cycle = false;
 bool first_run = true;
 bool main_LED = true;
 bool dizzy = false;
-
+bool standing = true;
+uint8_t blink_time;
 uint8_t busy_cycle_time;
 uint8_t GUI_selector, prev_GUI_selector;
 
@@ -397,9 +398,14 @@ void deal_with_standing()
 {
   prev_want_to_stand = want_to_stand;
   if (abs(wanted_velocity_from_user_m_s) <= SPEED_TO_STAND_MS && abs(wanted_rotation_from_user) <= SPEED_TO_STAND_MS)
+  {
     want_to_stand = true;
+  }
   else
+  {
+    standing = false;
     want_to_stand = false;
+  }
   if (want_to_stand && !prev_want_to_stand)
     reset_encoders_when_stand = true;
   if (reset_encoders_when_stand && abs(robot_vel_m_sec) < SPEED_TO_STAND_MS)
@@ -407,6 +413,7 @@ void deal_with_standing()
     roboclaw.SetEncM1(ROBOCLAW_ADDRESS, 0);
     roboclaw.SetEncM2(ROBOCLAW_ADDRESS, 0);
     reset_encoders_when_stand = false;
+    standing = true;
   }
 }
 
@@ -580,44 +587,10 @@ void control_LEDs()
     toggle_mainLED(10 + 380 * motion_enable);
   else
     toggle_mainLED(390 - 370 * motion_enable);
+  digitalWrite(PIN_LED2, standing);
 }
 
-void send_to_RaspberryPi()
-{
-  static float average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase;
-  static int dizzy_count;
-  static uint8_t expression;
-  static long last_time_expression_chnaged;
-
-  // calculate eyes pitch and yaw
-  alpha_beta(average_yaw, robot_orientation.yaw, ALPHA_YAW_AVERAGE);
-  if (abs(RemoteXY.joystick_1_x) > abs(avg_stick_x))
-    alpha_beta(avg_stick_x, RemoteXY.joystick_1_x, ALPHA_YAW_AVERAGE);
-  else
-    avg_stick_x = RemoteXY.joystick_1_x;
-  eyes_pitch = 1500 * pitch_rad + 128;
-  eyes_yaw = (robot_orientation.yaw - average_yaw) * 15 + (RemoteXY.joystick_1_x - avg_stick_x) * 60 + 128;
-
-  // do the dizzy trick
-  if (dizzy)
-  {
-    dizzy_amplitude = (600 - float(dizzy_count)) / 5;
-    dizzy_phase = float(dizzy_count) / 20;
-    eyes_yaw += dizzy_amplitude * cos(dizzy_phase);
-    eyes_pitch += dizzy_amplitude * sin(dizzy_phase);
-    dizzy_count++;
-    if (dizzy_count > 600)
-    {
-      dizzy = false;
-      dizzy_count = 0;
-    }
-  }
-  // calculate expression
-
-  transmit_to_raspberryPi(eyes_yaw, eyes_pitch, expression);
-}
-
-void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expression)
+void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expression, uint8_t blink_time)
 {
   static uint8_t RaspberryPi_index;
 
@@ -633,12 +606,97 @@ void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expressio
   }
   if (RaspberryPi_index == 2)
   {
-    Serial3.write(byte(constrain(int(50 * robot_vel_m_sec + 128), 0, 254))); // send vel in 2cm/sec
-    Serial3.write(byte(expression));                                         // expression
+    Serial3.write(byte(blink_time)); //  0 = no blink   15 = 0.15 sec blink
+    Serial3.write(byte(expression)); // expression
+    blink_time = 0;
   }
   RaspberryPi_index += 1;
   if (RaspberryPi_index == 3)
     RaspberryPi_index = 0;
+}
+
+void send_to_RaspberryPi()
+{
+  static float average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase;
+  static int dizzy_count;
+  static uint8_t express, express_use, shocked;
+  static unsigned long last_time_expression_chnaged;
+  static unsigned long last_time_moved;
+  static unsigned long last_blinked;
+  static bool bored;
+
+  // calculate eyes pitch and yaw
+  alpha_beta(average_yaw, robot_orientation.yaw, ALPHA_YAW_AVERAGE);
+  if (abs(RemoteXY.joystick_1_x) > abs(avg_stick_x))
+    alpha_beta(avg_stick_x, RemoteXY.joystick_1_x, ALPHA_YAW_AVERAGE);
+  else
+    avg_stick_x = RemoteXY.joystick_1_x;
+
+  eyes_pitch = 1800 * pitch_rad + 128;
+  eyes_yaw = (robot_orientation.yaw - average_yaw) * 10 + (RemoteXY.joystick_1_x - avg_stick_x) * 40 + 128;
+
+  // do the dizzy trick
+  if (dizzy)
+  {
+    dizzy_amplitude = (600 - float(dizzy_count)) / 20;
+    dizzy_phase = float(dizzy_count) / 40;
+    eyes_yaw += dizzy_amplitude * cos(dizzy_phase);
+    eyes_pitch += dizzy_amplitude * sin(dizzy_phase);
+    dizzy_count++;
+    if (dizzy_count > 600)
+    {
+      dizzy = false;
+      dizzy_count = 0;
+    }
+  }
+  // calculate expression
+  // 0 = closed, 1= normal, 2 = snake , 3 = angree , 4 = worry , 5 = shock
+  if (millis() > last_time_expression_chnaged + (5000 - 3500 * bored))
+  {
+    express++;
+    last_time_expression_chnaged = millis();
+    if (express == 3)
+      express = 4;
+    if (express > 4)
+      express = 1;
+  }
+
+  if (standing && (abs(pitch_rad) > 2.01 / RAD_TO_DEG)) // being pooshed --> mad (3)
+  {
+    express = 3;
+    last_time_expression_chnaged = millis() + 6000;
+    last_time_moved = millis();
+  }
+  if (express == 3 && !standing && millis() > last_time_expression_chnaged + 2000)
+    express = 1;
+
+  express_use = express;
+
+  if (abs(robot_vel_m_sec) > 0.6 - 0.4 * shocked)
+  {
+    express_use = 5;
+    shocked = 1;
+  }
+  else
+  {
+    shocked = 0;
+  }
+
+  if (millis() > last_blinked + 1500 - 1000 * bored)
+  {
+    blink_time = 15;
+    last_blinked = millis();
+    express_use = 0;
+  }
+
+  if (!standing)
+    last_time_moved = millis();
+  if (millis() > last_time_moved + 8000)
+    bored = true;
+  else
+    bored = false;
+
+  transmit_to_raspberryPi(eyes_yaw, eyes_pitch, express_use, blink_time);
 }
 
 void send_telemetry()
@@ -792,8 +850,6 @@ void setup()
   EEPROM.get(28, imu_pitch_offset_temp);
   if (abs(imu_pitch_offset) > 10 || imu_pitch_offset != imu_pitch_offset_temp || imu_pitch_offset == 0)
     imu_pitch_offset = IMU_PITCH_OFFSET_DEF;
-
-  digitalWrite(PIN_LED2, 0);
 }
 
 void loop()
