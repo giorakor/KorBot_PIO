@@ -46,7 +46,7 @@
 
 #define JOYSTICK_DEAD_BAND 10  // % of joystick range
 #define ALPHA_JOYSTICK 0.8     //  0.8 avergaring factor for the averaged user stick commands
-#define SPEED_TO_STAND_MS 0.03 // 2 cm/s
+#define SPEED_TO_STAND_MS 0.02 // 2 cm/s
 
 #define ROBOCLAW_ADDRESS 0x80 //  adress of the roboclaw 128
 #define CLICKS_IN_METER 47609 //  encoder clics in one meter
@@ -408,7 +408,7 @@ void deal_with_standing()
   }
   if (want_to_stand && !prev_want_to_stand)
     reset_encoders_when_stand = true;
-  if (reset_encoders_when_stand && abs(robot_vel_m_sec) < SPEED_TO_STAND_MS)
+  if (reset_encoders_when_stand && abs(robot_vel_m_sec) < SPEED_TO_STAND_MS && abs(pitch_rad) < (1.01 / RAD_TO_DEG))
   {
     roboclaw.SetEncM1(ROBOCLAW_ADDRESS, 0);
     roboclaw.SetEncM2(ROBOCLAW_ADDRESS, 0);
@@ -611,15 +611,15 @@ void transmit_to_raspberryPi(float eyes_yaw, float eyes_pitch, uint8_t expressio
     blink_time = 0;
   }
   RaspberryPi_index += 1;
-  if (RaspberryPi_index == 3)
+  if (RaspberryPi_index >= 5)
     RaspberryPi_index = 0;
 }
 
 void send_to_RaspberryPi()
 {
-  static float average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase;
+  static float stick_x, average_yaw, avg_stick_x, eyes_pitch, eyes_yaw, dizzy_amplitude, dizzy_phase;
   static int dizzy_count;
-  static uint8_t express, express_use, shocked;
+  static uint8_t express, express_use, shocked, rand_e;
   static unsigned long last_time_expression_chnaged;
   static unsigned long last_time_moved;
   static unsigned long last_blinked;
@@ -627,19 +627,20 @@ void send_to_RaspberryPi()
 
   // calculate eyes pitch and yaw
   alpha_beta(average_yaw, robot_orientation.yaw, ALPHA_YAW_AVERAGE);
-  if (abs(RemoteXY.joystick_1_x) > abs(avg_stick_x))
-    alpha_beta(avg_stick_x, RemoteXY.joystick_1_x, ALPHA_YAW_AVERAGE);
+  stick_x = RemoteXY.joystick_1_x;
+  if (abs(stick_x) > abs(avg_stick_x))
+    alpha_beta(avg_stick_x, stick_x, ALPHA_YAW_AVERAGE);
   else
-    avg_stick_x = RemoteXY.joystick_1_x;
+    avg_stick_x = stick_x;
 
-  eyes_pitch = 1800 * pitch_rad + 128;
-  eyes_yaw = (robot_orientation.yaw - average_yaw) * 10 + (RemoteXY.joystick_1_x - avg_stick_x) * 40 + 128;
+  eyes_pitch = pitch_rad * RAD_TO_DEG * 10.0 + 128.0;
+  eyes_yaw = (robot_orientation.yaw - average_yaw) * 2.0 + (stick_x - avg_stick_x) * 2.0 + 128.0;
 
   // do the dizzy trick
   if (dizzy)
   {
-    dizzy_amplitude = (600 - float(dizzy_count)) / 20;
-    dizzy_phase = float(dizzy_count) / 40;
+    dizzy_amplitude = (800.0 - float(dizzy_count)) / 10.0;
+    dizzy_phase = float(dizzy_count) / 40.0;
     eyes_yaw += dizzy_amplitude * cos(dizzy_phase);
     eyes_pitch += dizzy_amplitude * sin(dizzy_phase);
     dizzy_count++;
@@ -651,27 +652,27 @@ void send_to_RaspberryPi()
   }
   // calculate expression
   // 0 = closed, 1= normal, 2 = snake , 3 = angree , 4 = worry , 5 = shock
-  if (millis() > last_time_expression_chnaged + (5000 - 3500 * bored))
+  if (millis() > last_time_expression_chnaged + (4000 + random(2000) - 2000 * bored))
   {
-    express++;
-    last_time_expression_chnaged = millis();
-    if (express == 3)
+    express = 1;
+    rand_e = random(5);
+    if (rand_e == 3)
+      express = 2;
+    if (rand_e == 4)
       express = 4;
-    if (express > 4)
-      express = 1;
+    last_time_expression_chnaged = millis();
   }
 
   if (standing && (abs(pitch_rad) > 2.01 / RAD_TO_DEG)) // being pooshed --> mad (3)
   {
     express = 3;
-    last_time_expression_chnaged = millis() + 6000;
+    last_time_expression_chnaged = millis() + 4000;
     last_time_moved = millis();
   }
-  if (express == 3 && !standing && millis() > last_time_expression_chnaged + 2000)
+  if (express == 3 && !standing && millis() > last_time_expression_chnaged - 2000)
     express = 1;
 
   express_use = express;
-
   if (abs(robot_vel_m_sec) > 0.6 - 0.4 * shocked)
   {
     express_use = 5;
@@ -682,7 +683,7 @@ void send_to_RaspberryPi()
     shocked = 0;
   }
 
-  if (millis() > last_blinked + 1500 - 1000 * bored)
+  if (millis() > last_blinked + 500 + random(2000) - 500 * bored)
   {
     blink_time = 15;
     last_blinked = millis();
@@ -691,7 +692,7 @@ void send_to_RaspberryPi()
 
   if (!standing)
     last_time_moved = millis();
-  if (millis() > last_time_moved + 8000)
+  if (millis() > last_time_moved + 12000)
     bored = true;
   else
     bored = false;
@@ -732,6 +733,7 @@ void read_user_commands()
   static float prev_joystick_X, prev_joystick_Y;
   static long last_movement;
   static boolean com_loss;
+  static float d_yaw;
 
   //  stop if dead commands
   if (RemoteXY.joystick_1_y != prev_joystick_Y || RemoteXY.joystick_1_x != prev_joystick_X)
@@ -783,7 +785,10 @@ void read_user_commands()
 
   wanted_rotation_from_user = filtered_stick_rotation;
 
-  accumulated_rotation_angle += robot_orientation.yaw - prev_robot_orientation;
+  d_yaw = robot_orientation.yaw - prev_robot_orientation;
+  if (d_yaw > 180)
+    d_yaw -= 360;
+  accumulated_rotation_angle += d_yaw;
   prev_robot_orientation = robot_orientation.yaw;
   if (abs(wanted_rotation_from_user) < SPEED_TO_STAND_MS)
   {
