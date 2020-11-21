@@ -635,7 +635,7 @@ void send_to_RaspberryPi()
 
   eyes_pitch = pitch_rad * RAD_TO_DEG * 8.0;
   constrainF(eyes_pitch, -30, 30);
-  eyes_yaw = (robot_orientation.yaw - average_yaw) * 10.0 + (stick_x - avg_stick_x) * 10.0;
+  eyes_yaw = (robot_orientation.yaw - average_yaw) * 3.0 + (stick_x - avg_stick_x) * 10.0;
   constrainF(eyes_pitch, -60, 60);
   eyes_pitch += 128;
   eyes_yaw += 128;
@@ -644,8 +644,8 @@ void send_to_RaspberryPi()
   {
     if (dizzy_count == 0)
       dizzy_sign = eyes_yaw / (abs(eyes_yaw) + 0.0000001);
-    dizzy_amplitude = (800.0 - float(dizzy_count)) / 15.0;
-    dizzy_phase = float(dizzy_count) / 20.0;
+    dizzy_amplitude = (800.0 - float(dizzy_count)) / 12.0;
+    dizzy_phase = float(dizzy_count) / 15.0;
     eyes_yaw += dizzy_sign * dizzy_amplitude * cos(dizzy_phase);
     eyes_pitch += dizzy_amplitude * sin(dizzy_phase);
     dizzy_count++;
@@ -657,7 +657,7 @@ void send_to_RaspberryPi()
   }
   // calculate expression
   // 0 = closed, 1= normal, 2 = snake , 3 = angree , 4 = worry , 5 = shock
-  if (millis() > last_time_expression_chnaged + (3000 + random(3000) - 1500 * bored))
+  if (millis() > last_time_expression_chnaged + (3000 + random(4000) - 2000 * bored))
   {
     express = 1;
     rand_e = random(5);
@@ -688,15 +688,18 @@ void send_to_RaspberryPi()
     shocked = 0;
   }
 
-  if (millis() > last_blinked + 1000 + random(3000) - 500 * bored)
+  if (dizzy)
+    express_use = 5;
+
+  if (millis() > last_blinked + 1500 + random(4000) - 500 * bored)
   {
-    blink_time = 15;
+    blink_time = 17;
     last_blinked = millis();
   }
 
   if (!standing)
     last_time_moved = millis();
-  if (millis() > last_time_moved + 15000)
+  if (millis() > last_time_moved + 20000)
     bored = 1;
   else
     bored = 0;
