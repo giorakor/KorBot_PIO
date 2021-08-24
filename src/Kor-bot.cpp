@@ -653,12 +653,12 @@ void send_to_RaspberryPi()
   {
     if (dizzy_count == 0)
       dizzy_sign = sign(eyes_yaw);
-    dizzy_amplitude = (800.0 - float(dizzy_count)) / 12.0;
+    dizzy_amplitude = 150 + (600.0 - float(dizzy_count)) / 12.0;
     dizzy_phase = float(dizzy_count) / 15.0;
     eyes_yaw += dizzy_sign * dizzy_amplitude * cos(dizzy_phase);
-    eyes_pitch += dizzy_amplitude * sin(dizzy_phase);
+    eyes_pitch += dizzy_amplitude * sin(dizzy_phase * 2.0);
     dizzy_count++;
-    if (dizzy_count > 800)
+    if (dizzy_count > 600)
     {
       dizzy = false;
       dizzy_count = 0;
@@ -666,7 +666,7 @@ void send_to_RaspberryPi()
   }
   // calculate expression
   // 0 = closed, 1= normal, 2 = snake , 3 = angree , 4 = worry , 5 = shock
-  if (millis() > last_time_expression_chnaged + (3000 + random(4000) - 2000 * bored))
+  if (millis() > last_time_expression_chnaged + (3000 + random(4000) - 1000 * bored))
   {
     expression = 1;
     rand_e = random(5);
@@ -808,10 +808,10 @@ void read_user_commands()
   prev_robot_orientation = robot_orientation.yaw;
   if (abs(wanted_rotation_from_user) < SPEED_TO_STAND_MS)
   {
-    if (abs(accumulated_rotation_angle) > 320)
-      dizzy = true;
     accumulated_rotation_angle = 0;
   }
+  if (abs(accumulated_rotation_angle) > 340)
+    dizzy = true;
 
   prev_SW1 = SW1;
   SW1temp = (1 - digitalRead(PIN_SW1));
